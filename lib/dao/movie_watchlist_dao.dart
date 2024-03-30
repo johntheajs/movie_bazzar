@@ -18,7 +18,7 @@ class MovieWatchlistDAO {
     final Database db = await DatabaseHelper.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'movie_watchlist',
-      where: 'user_id = ?',
+      where: 'userid = ?',
       whereArgs: [userId],
     );
     return List.generate(maps.length, (i) {
@@ -30,7 +30,7 @@ class MovieWatchlistDAO {
     final Database db = await DatabaseHelper.database;
     return await db.delete(
       'movie_watchlist',
-      where: 'user_id = ?',
+      where: 'userid = ?',
       whereArgs: [userId],
     );
   }

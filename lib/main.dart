@@ -4,11 +4,15 @@ import 'package:sqflite/sqflite.dart';
 // Import User model and UserDAO
 import 'models/user_model.dart';
 import '../dao/user_dao.dart';
+import 'models/movie_model.dart'; // Import Movie model
+import '../dao/movie_dao.dart'; // Import MovieDAO
+import '../helpers/database_helper.dart'; // Import DatabaseHelper
+import 'models/movie_watchlist_model.dart'; // Import Movie model
+import '../dao/movie_watchlist_dao.dart'; 
+
 void main() {
   runApp(const MyApp());
 }
-
-
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -21,7 +25,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 
 class LoginPage extends StatefulWidget {
   @override
@@ -36,6 +39,7 @@ class _LoginPageState extends State<LoginPage> {
 
   // Instantiate UserDAO
   final UserDao _userDAO = UserDao();
+  int? _userId; // Temporary variable to store the logged-in user's ID
 
   @override
   Widget build(BuildContext context) {
@@ -163,11 +167,13 @@ class _LoginPageState extends State<LoginPage> {
     // Retrieve user from database by username
     User? user = await _userDAO.getUserByUsername(username);
     if (user != null && user.password == password) {
+      // Store the logged-in user's ID
+      _userId = user.id;
       // Navigate to MainPage if login successful
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => MainPage(),
+          builder: (context) => MainPage(userId: _userId!),
         ),
       );
     } else {
@@ -177,34 +183,34 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _performSignup() async {
-  String username = _usernameController.text;
-  String password = _passwordController.text;
-  String reEnterPassword = _reEnterPasswordController.text;
-  
-  if (password != reEnterPassword) {
-    // Show error message
-    _showErrorMessage('Passwords do not match');
-    return;
+    String username = _usernameController.text;
+    String password = _passwordController.text;
+    String reEnterPassword = _reEnterPasswordController.text;
+
+    if (password != reEnterPassword) {
+      // Show error message
+      _showErrorMessage('Passwords do not match');
+      return;
+    }
+
+    // Check if the username is already taken
+    User? existingUser = await _userDAO.getUserByUsername(username);
+    if (existingUser != null) {
+      // Show error message
+      _showErrorMessage('Username already exists');
+      return;
+    }
+
+    // Insert new user into the database
+    User newUser = User(username: username, password: password);
+    await _userDAO.insertUser(newUser);
+
+    // Navigate to LoginPage after successful signup
+    setState(() {
+      _isLoginMode = true;
+    });
+    _showSuccessMessage('Signup successful! Please login.');
   }
-
-  // Check if the username is already taken
-  User? existingUser = await _userDAO.getUserByUsername(username);
-  if (existingUser != null) {
-    // Show error message
-    _showErrorMessage('Username already exists');
-    return;
-  }
-
-  // Insert new user into the database
-  User newUser = User(username: username, password: password);
-  await _userDAO.insertUser(newUser);
-
-  // Navigate to LoginPage after successful signup
-  setState(() {
-    _isLoginMode = true;
-  });
-  _showSuccessMessage('Signup successful! Please login.');
-}
 
   void _showErrorMessage(String message) {
     showDialog(
@@ -247,7 +253,16 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class MainPage extends StatelessWidget {
+class MainPage extends StatefulWidget {
+  final int userId;
+
+  MainPage({required this.userId});
+
+  @override
+  _MainPageState createState() => _MainPageState();
+}
+
+class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -273,7 +288,7 @@ class MainPage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => MoviesPage(),
+                      builder: (context) => MoviesPage(userId: widget.userId),
                     ),
                   );
                 },
@@ -286,7 +301,7 @@ class MainPage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => WatchlistPage(),
+                      builder: (context) => WatchlistPage(userId: widget.userId),
                     ),
                   );
                 },
@@ -308,22 +323,67 @@ class MainPage extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            MoviesPage(),
-            WatchlistPage(),
+            MoviesPage(userId: widget.userId),
+            WatchlistPage(userId: widget.userId),
           ],
         ),
       ),
     );
   }
 }
+class MoviesPage extends StatefulWidget {
+  final int userId;
 
+  MoviesPage({required this.userId});
 
-class MoviesPage extends StatelessWidget {
+  @override
+  _MoviesPageState createState() => _MoviesPageState();
+}
+
+class _MoviesPageState extends State<MoviesPage> {
+  late Future<List<Movie>> _moviesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMovies();
+  }
+
+  Future<void> _loadMovies() async {
+    // Fetch movies associated with the userId from the database using DAO
+    _moviesFuture = MovieDAO().getMoviesByUserId(widget.userId);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Text('Movies Page'),
+      // appBar: AppBar(
+      //   title: Text('Movies Page - User ID: ${widget.userId}'),
+      // ),
+      body: FutureBuilder<List<Movie>>(
+        future: _moviesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else {
+            List<Movie> movies = snapshot.data ?? [];
+            return ListView.builder(
+              itemCount: movies.length,
+              itemBuilder: (context, index) {
+                Movie movie = movies[index];
+                return ListTile(
+                  title: Text(movie.title),
+                  subtitle: Text('${movie.year} | ${movie.genre}'),
+                  onTap: () {
+                    // Implement onTap functionality to view movie details
+                  },
+                );
+              },
+            );
+          }
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -331,7 +391,7 @@ class MoviesPage extends StatelessWidget {
           showDialog(
             context: context,
             builder: (BuildContext context) {
-              return AddMovieDialog();
+              return AddMovieDialog(userId: widget.userId);
             },
           );
         },
@@ -341,32 +401,22 @@ class MoviesPage extends StatelessWidget {
   }
 }
 
-class WatchlistPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Text('Watchlist Page'),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Show AlertDialog for adding a new watchlist item
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AddWatchlistItemDialog();
-            },
-          );
-        },
-        child: Icon(Icons.add),
-      ),
-    );
-  }
-}
+
 
 class AddMovieDialog extends StatelessWidget {
+  final int userId;
+
+  const AddMovieDialog({required this.userId});
+
   @override
   Widget build(BuildContext context) {
+    // Controllers for each input field
+    TextEditingController titleController = TextEditingController();
+    TextEditingController yearController = TextEditingController();
+    TextEditingController ratingController = TextEditingController();
+    TextEditingController genreController = TextEditingController();
+    TextEditingController descriptionController = TextEditingController();
+
     return AlertDialog(
       title: Text('Add Movie'),
       content: SingleChildScrollView(
@@ -374,18 +424,23 @@ class AddMovieDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextFormField(
+              controller: titleController,
               decoration: InputDecoration(labelText: 'Title'),
             ),
             TextFormField(
+              controller: yearController,
               decoration: InputDecoration(labelText: 'Year'),
             ),
             TextFormField(
+              controller: ratingController,
               decoration: InputDecoration(labelText: 'Rating'),
             ),
             TextFormField(
+              controller: genreController,
               decoration: InputDecoration(labelText: 'Genre'),
             ),
             TextFormField(
+              controller: descriptionController,
               decoration: InputDecoration(labelText: 'Description'),
             ),
           ],
@@ -399,8 +454,29 @@ class AddMovieDialog extends StatelessWidget {
           child: Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: () {
-            // Add movie logic
+          onPressed: () async {
+            // Get text from controllers
+            String title = titleController.text;
+            int year = int.parse(yearController.text);
+            double rating = double.parse(ratingController.text);
+            String genre = genreController.text;
+            String description = descriptionController.text;
+
+            // Create a Movie object
+            Movie movie = Movie(
+              userId: userId,
+              title: title,
+              year: year,
+              rating: rating,
+              genre: genre,
+              description: description,
+            );
+
+            // Insert movie into the database
+            MovieDAO movieDAO = MovieDAO();
+            await movieDAO.insertMovie(movie);
+
+            // Close the dialog
             Navigator.of(context).pop();
           },
           child: Text('Submit'),
@@ -410,9 +486,85 @@ class AddMovieDialog extends StatelessWidget {
   }
 }
 
-class AddWatchlistItemDialog extends StatelessWidget {
+class WatchlistPage extends StatefulWidget {
+  final int userId;
+
+  const WatchlistPage({required this.userId});
+
+  @override
+  _WatchlistPageState createState() => _WatchlistPageState();
+}
+
+class _WatchlistPageState extends State<WatchlistPage> {
+  late Future<List<MovieWatchlist>> _watchlistItemsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWatchlistItems();
+  }
+
+  Future<void> _loadWatchlistItems() async {
+    // Fetch watchlist items associated with the userId from the database using DAO
+    _watchlistItemsFuture = MovieWatchlistDAO().getMovieWatchlistByUserId(widget.userId);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      // appBar: AppBar(
+      //   title: Text('Watchlist Page - User ID: ${widget.userId}'),
+      // ),
+      body: FutureBuilder<List<MovieWatchlist>>(
+        future: _watchlistItemsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else {
+            List<MovieWatchlist> watchlistItems = snapshot.data ?? [];
+            return ListView.builder(
+              itemCount: watchlistItems.length,
+              itemBuilder: (context, index) {
+                MovieWatchlist watchlistItem = watchlistItems[index];
+                return ListTile(
+                  title: Text(watchlistItem.title),
+                  subtitle: Text('${watchlistItem.year} | ${watchlistItem.genre}'),
+                );
+              },
+            );
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Show AlertDialog for adding a new watchlist item
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AddWatchlistItemDialog(userId: widget.userId);
+            },
+          );
+        },
+        child: Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class AddWatchlistItemDialog extends StatelessWidget {
+  final int userId;
+
+  const AddWatchlistItemDialog({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    // Controllers for each input field
+    TextEditingController titleController = TextEditingController();
+    TextEditingController yearController = TextEditingController();
+    TextEditingController genreController = TextEditingController();
+
     return AlertDialog(
       title: Text('Add Watchlist Item'),
       content: SingleChildScrollView(
@@ -420,12 +572,15 @@ class AddWatchlistItemDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextFormField(
+              controller: titleController,
               decoration: InputDecoration(labelText: 'Title'),
             ),
             TextFormField(
+              controller: yearController,
               decoration: InputDecoration(labelText: 'Year'),
             ),
             TextFormField(
+              controller: genreController,
               decoration: InputDecoration(labelText: 'Genre'),
             ),
           ],
@@ -439,8 +594,25 @@ class AddWatchlistItemDialog extends StatelessWidget {
           child: Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: () {
-            // Add watchlist item logic
+          onPressed: () async {
+            // Get text from controllers
+            String title = titleController.text;
+            int year = int.parse(yearController.text);
+            String genre = genreController.text;
+
+            // Create a WatchlistItem object
+            MovieWatchlist watchlistItem = MovieWatchlist(
+              title: title,
+              year: year,
+              genre: genre,
+              userId: userId,
+            );
+
+            // Insert watchlist item into the database
+            MovieWatchlistDAO watchlistDAO = MovieWatchlistDAO();
+            await watchlistDAO.insertMovieWatchlist(watchlistItem);
+
+            // Close the dialog
             Navigator.of(context).pop();
           },
           child: Text('Submit'),
@@ -449,3 +621,4 @@ class AddWatchlistItemDialog extends StatelessWidget {
     );
   }
 }
+

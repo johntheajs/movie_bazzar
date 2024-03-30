@@ -1,5 +1,5 @@
 class Movie {
-  int id;
+  int ? id;
   int userId; // Foreign key referencing User
   String title;
   int year;
@@ -8,7 +8,7 @@ class Movie {
   String description;
 
   Movie({
-    required this.id,
+    this.id,
     required this.userId,
     required this.title,
     required this.year,
