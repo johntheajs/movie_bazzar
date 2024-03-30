@@ -331,6 +331,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 }
+
 class MoviesPage extends StatefulWidget {
   final int userId;
 
@@ -485,7 +486,6 @@ class AddMovieDialog extends StatelessWidget {
     );
   }
 }
-
 class WatchlistPage extends StatefulWidget {
   final int userId;
 
@@ -513,7 +513,7 @@ class _WatchlistPageState extends State<WatchlistPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       // appBar: AppBar(
-      //   title: Text('Watchlist Page - User ID: ${widget.userId}'),
+      //   title: Text('Watchlist Page'),
       // ),
       body: FutureBuilder<List<MovieWatchlist>>(
         future: _watchlistItemsFuture,
@@ -552,7 +552,6 @@ class _WatchlistPageState extends State<WatchlistPage> {
     );
   }
 }
-
 class AddWatchlistItemDialog extends StatelessWidget {
   final int userId;
 
@@ -600,7 +599,7 @@ class AddWatchlistItemDialog extends StatelessWidget {
             int year = int.parse(yearController.text);
             String genre = genreController.text;
 
-            // Create a WatchlistItem object
+            // Create a MovieWatchlist object
             MovieWatchlist watchlistItem = MovieWatchlist(
               title: title,
               year: year,
@@ -621,4 +620,3 @@ class AddWatchlistItemDialog extends StatelessWidget {
     );
   }
 }
-

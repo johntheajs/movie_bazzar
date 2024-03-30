@@ -1,14 +1,12 @@
-import 'package:flutter/material.dart';
-
 class MovieWatchlist {
-  int? id;
-  String title;
-  int year;
-  String genre;
-  int userId;
+  int ? id; // Change to non-final and nullable
+  final String title;
+  final int year;
+  final String genre;
+  final int userId;
 
   MovieWatchlist({
-    this.id,
+    this.id, // Initialize to 0
     required this.title,
     required this.year,
     required this.genre,
@@ -17,21 +15,21 @@ class MovieWatchlist {
 
   factory MovieWatchlist.fromMap(Map<String, dynamic> map) {
     return MovieWatchlist(
-      id: map['id'] as int?,
-      title: map['title'] as String,
-      year: map['year'] as int,
-      genre: map['genre'] as String,
-      userId: map['userid'] as int, // Adjust the key according to your database schema
+      id: map['id'],
+      title: map['title'],
+      year: map['year'],
+      genre: map['genre'],
+      userId: map['userId'],
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
+      'id': id, // Don't include id in the map
       'title': title,
       'year': year,
       'genre': genre,
-      'userid': userId, // Adjust the key according to your database schema
+      'userId': userId,
     };
   }
 }
