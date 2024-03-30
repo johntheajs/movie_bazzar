@@ -358,9 +358,6 @@ class _MoviesPageState extends State<MoviesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: Text('Movies Page - User ID: ${widget.userId}'),
-      // ),
       body: FutureBuilder<List<Movie>>(
         future: _moviesFuture,
         builder: (context, snapshot) {
@@ -378,7 +375,7 @@ class _MoviesPageState extends State<MoviesPage> {
                   title: Text(movie.title),
                   subtitle: Text('${movie.year} | ${movie.genre}'),
                   onTap: () {
-                    // Implement onTap functionality to view movie details
+                    _showMovieDetailsDialog(movie);
                   },
                 );
               },
@@ -398,6 +395,35 @@ class _MoviesPageState extends State<MoviesPage> {
         },
         child: Icon(Icons.add),
       ),
+    );
+  }
+
+  void _showMovieDetailsDialog(Movie movie) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(movie.title),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Year: ${movie.year}'),
+              Text('Rating: ${movie.rating}'),
+              Text('Genre: ${movie.genre}'),
+              Text('Description: ${movie.description}'),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -486,6 +512,7 @@ class AddMovieDialog extends StatelessWidget {
     );
   }
 }
+
 class WatchlistPage extends StatefulWidget {
   final int userId;
 
@@ -512,9 +539,6 @@ class _WatchlistPageState extends State<WatchlistPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: Text('Watchlist Page'),
-      // ),
       body: FutureBuilder<List<MovieWatchlist>>(
         future: _watchlistItemsFuture,
         builder: (context, snapshot) {
@@ -531,6 +555,9 @@ class _WatchlistPageState extends State<WatchlistPage> {
                 return ListTile(
                   title: Text(watchlistItem.title),
                   subtitle: Text('${watchlistItem.year} | ${watchlistItem.genre}'),
+                  onTap: () {
+                    _showWatchlistItemDetailsDialog(watchlistItem);
+                  },
                 );
               },
             );
@@ -551,7 +578,36 @@ class _WatchlistPageState extends State<WatchlistPage> {
       ),
     );
   }
+
+  void _showWatchlistItemDetailsDialog(MovieWatchlist watchlistItem) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(watchlistItem.title),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Year: ${watchlistItem.year}'),
+              Text('Genre: ${watchlistItem.genre}'),
+              // Add more details if needed
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
+
 class AddWatchlistItemDialog extends StatelessWidget {
   final int userId;
 
