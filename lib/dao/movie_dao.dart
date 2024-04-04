@@ -34,4 +34,14 @@ class MovieDAO {
       whereArgs: [id],
     );
   }
+
+  Future<int> updateMovie(Movie movie) async {
+    final Database db = await DatabaseHelper.database;
+    return await db.update(
+      'movies',
+      movie.toMap(),
+      where: 'id = ?',
+      whereArgs: [movie.id],
+    );
+  }
 }

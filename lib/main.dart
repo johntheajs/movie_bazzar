@@ -384,32 +384,60 @@ class MoviesPage extends StatelessWidget {
   }
 
   void _showMovieDetailsDialog(BuildContext context, Movie movie) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(movie.title),
-          content: Column(
+  // Controllers for each input field
+  TextEditingController titleController = TextEditingController(text: movie.title);
+  TextEditingController yearController = TextEditingController(text: movie.year.toString());
+  TextEditingController ratingController = TextEditingController(text: movie.rating.toString());
+  TextEditingController genreController = TextEditingController(text: movie.genre);
+  TextEditingController descriptionController = TextEditingController(text: movie.description);
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text(movie.title),
+        content: SingleChildScrollView(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Year: ${movie.year}'),
               Text('Genre: ${movie.genre}'),
               Text('Description: ${movie.description}'),
+              SizedBox(height: 16), // Add some spacing
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AddMovieDialog(
+                            userId: movie.userId,
+                            movie: movie,
+                          );
+                        },
+                      );
+                    },
+                    child: Text('Update'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: Text('Close'),
+                  ),
+                ],
+              ),
             ],
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   void _showDeleteConfirmationDialog(BuildContext context, int movieId) {
     showDialog(
@@ -634,8 +662,9 @@ class _WatchlistPageState extends State<WatchlistPage> {
 
 class AddMovieDialog extends StatelessWidget {
   final int userId;
+  final Movie? movie; // Nullable Movie object
 
-  const AddMovieDialog({required this.userId});
+  const AddMovieDialog({required this.userId, this.movie});
 
   @override
   Widget build(BuildContext context) {
@@ -646,8 +675,17 @@ class AddMovieDialog extends StatelessWidget {
     TextEditingController genreController = TextEditingController();
     TextEditingController descriptionController = TextEditingController();
 
+    if (movie != null) {
+      // If movie object is provided, fill the text fields with movie details
+      titleController.text = movie!.title;
+      yearController.text = movie!.year.toString();
+      ratingController.text = movie!.rating.toString();
+      genreController.text = movie!.genre;
+      descriptionController.text = movie!.description;
+    }
+
     return AlertDialog(
-      title: Text('Add Movie'),
+      title: Text(movie != null ? 'Update Movie' : 'Add Movie'),
       content: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -692,7 +730,8 @@ class AddMovieDialog extends StatelessWidget {
             String description = descriptionController.text;
 
             // Create a Movie object
-            Movie movie = Movie(
+            Movie updatedMovie = Movie(
+              id: movie?.id, // Retain the original ID
               userId: userId,
               title: title,
               year: year,
@@ -701,9 +740,14 @@ class AddMovieDialog extends StatelessWidget {
               description: description,
             );
 
-            // Insert movie into the database
+            // If movie object is provided, update the movie
+            // Otherwise, insert a new movie
             MovieDAO movieDAO = MovieDAO();
-            await movieDAO.insertMovie(movie);
+            if (movie != null) {
+              await movieDAO.updateMovie(updatedMovie);
+            } else {
+              await movieDAO.insertMovie(updatedMovie);
+            }
 
             // Close the dialog
             Navigator.of(context).pop();
@@ -714,7 +758,6 @@ class AddMovieDialog extends StatelessWidget {
     );
   }
 }
-
 
 
 class AddWatchlistItemDialog extends StatelessWidget {
