@@ -26,12 +26,12 @@ class MovieWatchlistDAO {
     });
   }
 
-  Future<int> deleteMovieWatchlistByUserId(int userId) async {
+  Future<int> deleteMovieWatchlistByUserId(int id) async {
     final Database db = await DatabaseHelper.database;
     return await db.delete(
       'movie_watchlist',
-      where: 'userid = ?',
-      whereArgs: [userId],
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 }

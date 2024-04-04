@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 // Import User model and UserDAO
 import 'models/user_model.dart';
@@ -332,34 +333,16 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-class MoviesPage extends StatefulWidget {
+class MoviesPage extends StatelessWidget {
   final int userId;
 
   MoviesPage({required this.userId});
 
   @override
-  _MoviesPageState createState() => _MoviesPageState();
-}
-
-class _MoviesPageState extends State<MoviesPage> {
-  late Future<List<Movie>> _moviesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMovies();
-  }
-
-  Future<void> _loadMovies() async {
-    // Fetch movies associated with the userId from the database using DAO
-    _moviesFuture = MovieDAO().getMoviesByUserId(widget.userId);
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: FutureBuilder<List<Movie>>(
-        future: _moviesFuture,
+        future: MovieDAO().getMoviesByUserId(userId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
@@ -375,7 +358,10 @@ class _MoviesPageState extends State<MoviesPage> {
                   title: Text(movie.title),
                   subtitle: Text('${movie.year} | ${movie.genre}'),
                   onTap: () {
-                    _showMovieDetailsDialog(movie);
+                    _showMovieDetailsDialog(context, movie);
+                  },
+                  onLongPress: () {
+                    _showDeleteConfirmationDialog(context, movie.id ?? 0);
                   },
                 );
               },
@@ -385,11 +371,10 @@ class _MoviesPageState extends State<MoviesPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Show AlertDialog for adding a new movie
           showDialog(
             context: context,
             builder: (BuildContext context) {
-              return AddMovieDialog(userId: widget.userId);
+              return AddMovieDialog(userId: userId);
             },
           );
         },
@@ -398,7 +383,7 @@ class _MoviesPageState extends State<MoviesPage> {
     );
   }
 
-  void _showMovieDetailsDialog(Movie movie) {
+  void _showMovieDetailsDialog(BuildContext context, Movie movie) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -409,7 +394,6 @@ class _MoviesPageState extends State<MoviesPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Year: ${movie.year}'),
-              Text('Rating: ${movie.rating}'),
               Text('Genre: ${movie.genre}'),
               Text('Description: ${movie.description}'),
             ],
@@ -426,8 +410,226 @@ class _MoviesPageState extends State<MoviesPage> {
       },
     );
   }
+
+  void _showDeleteConfirmationDialog(BuildContext context, int movieId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Delete Movie?'),
+          content: Text('Are you sure you want to delete this movie?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                _deleteMovie(context, movieId);
+              },
+              child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteMovie(BuildContext context, int movieId) async {
+    await MovieDAO().deleteMovie(movieId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Movie deleted successfully'),
+      ),
+    );
+    Navigator.of(context).pop(); // Close delete confirmation dialog
+  }
 }
 
+class WatchlistPage extends StatefulWidget {
+  final int userId;
+
+  WatchlistPage({required this.userId});
+
+  @override
+  _WatchlistPageState createState() => _WatchlistPageState();
+}
+
+class _WatchlistPageState extends State<WatchlistPage> {
+  late Future<List<MovieWatchlist>> _watchlistItemsFuture;
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeNotifications();
+    _loadWatchlistItems();
+  }
+
+  Future<void> _initializeNotifications() async {
+    // Initialize the notification plugin
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    final InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      // onSelectNotification: _onSelectNotification,
+    );
+  }
+
+  Future<dynamic> _onSelectNotification(String? payload) async {
+    // Handle notification selection
+    print('Notification selected: $payload');
+  }
+
+  Future<void> _loadWatchlistItems() async {
+    _watchlistItemsFuture =
+        MovieWatchlistDAO().getMovieWatchlistByUserId(widget.userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: FutureBuilder<List<MovieWatchlist>>(
+        future: _watchlistItemsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else {
+            List<MovieWatchlist> watchlistItems = snapshot.data ?? [];
+            return ListView.builder(
+              itemCount: watchlistItems.length,
+              itemBuilder: (context, index) {
+                MovieWatchlist watchlistItem = watchlistItems[index];
+                return ListTile(
+                  title: Text(watchlistItem.title),
+                  subtitle: Text('${watchlistItem.year} | ${watchlistItem.genre}'),
+                  onTap: () {
+                    _showWatchlistItemDetailsDialog(context, watchlistItem);
+                  },
+                  onLongPress: () {
+                    _showDeleteConfirmationDialog(context, watchlistItem.id!);
+                  },
+                );
+              },
+            );
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AddWatchlistItemDialog(userId: widget.userId);
+            },
+          );
+        },
+        child: Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showWatchlistItemDetailsDialog(
+      BuildContext context, MovieWatchlist watchlistItem) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(watchlistItem.title),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Year: ${watchlistItem.year}'),
+              Text('Genre: ${watchlistItem.genre}'),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                _scheduleReminder(watchlistItem);
+                Navigator.of(context).pop();
+              },
+              child: Text('Remind'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmationDialog(BuildContext context, int watchlistItemId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Delete Watchlist Item?'),
+          content: Text('Are you sure you want to delete this watchlist item?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                _deleteWatchlistItem(context, watchlistItemId);
+              },
+              child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteWatchlistItem(BuildContext context, int watchlistItemId) async {
+    await MovieWatchlistDAO().deleteMovieWatchlistByUserId(watchlistItemId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Watchlist item deleted successfully'),
+      ),
+    );
+    _loadWatchlistItems();
+    Navigator.of(context).pop(); // Close delete confirmation dialog
+  }
+
+  void _scheduleReminder(MovieWatchlist watchlistItem) async {
+    String movieDetails =
+        '${watchlistItem.title}, ${watchlistItem.year}, ${watchlistItem.genre}';
+    await _showNotification('Watch Now', movieDetails);
+  }
+
+  Future<void> _showNotification(String title, String body) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails('reminder_channel', 'Reminders',
+            // 'Channel for reminders',
+            importance: Importance.high, priority: Priority.high);
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      0, // Notification ID
+      title, // Notification title
+      body, // Notification body
+      platformChannelSpecifics, // Notification details
+      payload: 'Reminder Payload', // Optional payload
+    );
+  }
+}
 
 
 class AddMovieDialog extends StatelessWidget {
@@ -513,100 +715,7 @@ class AddMovieDialog extends StatelessWidget {
   }
 }
 
-class WatchlistPage extends StatefulWidget {
-  final int userId;
 
-  const WatchlistPage({required this.userId});
-
-  @override
-  _WatchlistPageState createState() => _WatchlistPageState();
-}
-
-class _WatchlistPageState extends State<WatchlistPage> {
-  late Future<List<MovieWatchlist>> _watchlistItemsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadWatchlistItems();
-  }
-
-  Future<void> _loadWatchlistItems() async {
-    // Fetch watchlist items associated with the userId from the database using DAO
-    _watchlistItemsFuture = MovieWatchlistDAO().getMovieWatchlistByUserId(widget.userId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: FutureBuilder<List<MovieWatchlist>>(
-        future: _watchlistItemsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else {
-            List<MovieWatchlist> watchlistItems = snapshot.data ?? [];
-            return ListView.builder(
-              itemCount: watchlistItems.length,
-              itemBuilder: (context, index) {
-                MovieWatchlist watchlistItem = watchlistItems[index];
-                return ListTile(
-                  title: Text(watchlistItem.title),
-                  subtitle: Text('${watchlistItem.year} | ${watchlistItem.genre}'),
-                  onTap: () {
-                    _showWatchlistItemDetailsDialog(watchlistItem);
-                  },
-                );
-              },
-            );
-          }
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Show AlertDialog for adding a new watchlist item
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AddWatchlistItemDialog(userId: widget.userId);
-            },
-          );
-        },
-        child: Icon(Icons.add),
-      ),
-    );
-  }
-
-  void _showWatchlistItemDetailsDialog(MovieWatchlist watchlistItem) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(watchlistItem.title),
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Year: ${watchlistItem.year}'),
-              Text('Genre: ${watchlistItem.genre}'),
-              // Add more details if needed
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
 
 class AddWatchlistItemDialog extends StatelessWidget {
   final int userId;
